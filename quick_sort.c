@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <math.h>
 
 // Swap two integers.
 void swap(int *a, int *b) {
@@ -10,10 +11,25 @@ void swap(int *a, int *b) {
     *b = temp;
 }
 
-// Partition function using the Lomuto partition scheme.
+// Returns the median-of-three pivot by ordering arr[low], arr[mid], arr[high].
+// After ordering, it swaps the median into arr[high] (pivot position).
+void medianOfThree(int arr[], int low, int high) {
+    int mid = low + (high - low) / 2;
+    if (arr[low] > arr[mid])
+        swap(&arr[low], &arr[mid]);
+    if (arr[low] > arr[high])
+        swap(&arr[low], &arr[high]);
+    if (arr[mid] > arr[high])
+        swap(&arr[mid], &arr[high]);
+    // Now, arr[low] <= arr[mid] <= arr[high]; use arr[mid] as pivot by swapping it with arr[high].
+    swap(&arr[mid], &arr[high]);
+}
+
+// Partition function using the Lomuto scheme with median-of-three pivot selection.
 int partition(int arr[], int low, int high) {
-    int pivot = arr[high];  // Choose the last element as pivot.
-    int i = low - 1;        // Index of smaller element.
+    medianOfThree(arr, low, high);  // Pivot is moved to arr[high]
+    int pivot = arr[high];  
+    int i = low - 1;        
     for (int j = low; j < high; j++) {
         if (arr[j] <= pivot) {
             i++;
@@ -24,12 +40,19 @@ int partition(int arr[], int low, int high) {
     return i + 1;
 }
 
-// Quick Sort function: sorts arr[low...high] in ascending order.
+// Quick Sort function with tail recursion elimination.
+// This version sorts arr[low...high] in ascending order.
 void quickSort(int arr[], int low, int high) {
-    if (low < high) {
+    while (low < high) {
         int pivotIndex = partition(arr, low, high);
-        quickSort(arr, low, pivotIndex - 1);
-        quickSort(arr, pivotIndex + 1, high);
+        // Recurse on the smaller subarray first to limit stack depth.
+        if (pivotIndex - low < high - pivotIndex) {
+            quickSort(arr, low, pivotIndex - 1);
+            low = pivotIndex + 1;  // Tail recursion for the larger subarray.
+        } else {
+            quickSort(arr, pivotIndex + 1, high);
+            high = pivotIndex - 1;
+        }
     }
 }
 
@@ -82,11 +105,9 @@ int* generate_partially_sorted_array(int n) {
         exit(EXIT_FAILURE);
     }
     int mid = n / 2;
-    // First half sorted.
     for (int i = 0; i < mid; i++) {
         arr[i] = i;
     }
-    // Second half random.
     for (int i = mid; i < n; i++) {
         arr[i] = rand() % 10000;
     }
@@ -111,7 +132,6 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
     double total_time = 0.0;
     
     for (int i = 0; i < iterations; i++) {
-        // Use a copy of the dataset for each run so that the original remains unchanged.
         int* data = copy_array(arr, n);
         
         start = clock();
@@ -130,7 +150,7 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
 int main() {
     srand(time(NULL));
     
-    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    // 다양한 입력 크기 (1K ~ 1M)로 테스트
     int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
     int numSizes = sizeof(sizes) / sizeof(sizes[0]);
     int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
@@ -139,19 +159,16 @@ int main() {
         int n = sizes[k];
         printf("\n----- Testing with input size: %d -----\n", n);
         
-        // 각 입력 크기에 대해 다양한 데이터셋 생성
-        int* sorted_array         = generate_sorted_array(n);
+        int* sorted_array = generate_sorted_array(n);
         int* reverse_sorted_array = generate_reverse_sorted_array(n);
-        int* random_array         = generate_random_array(n);
+        int* random_array = generate_random_array(n);
         int* partially_sorted_array = generate_partially_sorted_array(n);
         
-        // 각 데이터셋에 대해 실험 실행
         run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
         run_experiment("Sorted array (descending)", reverse_sorted_array, n, iterations);
         run_experiment("Random array", random_array, n, iterations);
         run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
         
-        // 동적 할당한 메모리 해제
         free(sorted_array);
         free(reverse_sorted_array);
         free(random_array);
