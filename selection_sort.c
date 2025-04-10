@@ -124,31 +124,35 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
 }
 
 int main() {
-    // Initialize random seed.
     srand(time(NULL));
     
-    // Experiment parameters:
-    // For demonstration, we use an array size of 1000. The assignment requires testing sizes from 1K to 1M.
-    int n = 1000;
-    int iterations = 10;  // Run each test at least 10 times for averaging.
+    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
+    int numSizes = sizeof(sizes) / sizeof(sizes[0]);
+    int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
     
-    // Generate input datasets.
-    int* sorted_array = generate_sorted_array(n);
-    int* reverse_sorted_array = generate_reverse_sorted_array(n);
-    int* random_array = generate_random_array(n);
-    int* partially_sorted_array = generate_partially_sorted_array(n);
-    
-    // Run experiments using selection sort.
-    run_experiment("Sorted array", sorted_array, n, iterations);
-    run_experiment("Reverse sorted array", reverse_sorted_array, n, iterations);
-    run_experiment("Random array", random_array, n, iterations);
-    run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
-    
-    // Free the allocated memory.
-    free(sorted_array);
-    free(reverse_sorted_array);
-    free(random_array);
-    free(partially_sorted_array);
+    for (int k = 0; k < numSizes; k++) {
+        int n = sizes[k];
+        printf("\n----- Testing with input size: %d -----\n", n);
+        
+        // 각 입력 크기에 대해 다양한 데이터셋 생성
+        int* sorted_array         = generate_sorted_array(n);
+        int* reverse_sorted_array = generate_reverse_sorted_array(n);
+        int* random_array         = generate_random_array(n);
+        int* partially_sorted_array = generate_partially_sorted_array(n);
+        
+        // 각 데이터셋에 대해 실험 실행
+        run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
+        run_experiment("Sorted array (descending)", reverse_sorted_array, n, iterations);
+        run_experiment("Random array", random_array, n, iterations);
+        run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
+        
+        // 동적 할당한 메모리 해제
+        free(sorted_array);
+        free(reverse_sorted_array);
+        free(random_array);
+        free(partially_sorted_array);
+    }
     
     return 0;
 }
