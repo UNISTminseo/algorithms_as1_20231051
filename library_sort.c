@@ -1,119 +1,154 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
+#include <time.h>
+#include <math.h>
 
-// --------------------- Library Sort Implementation ---------------------
+#define EPS 0.5  // ε 값: 여유 공간 비율 (필요에 따라 조정)
 
-// librarySort sorts the array 'arr' of length n using a simplified Library Sort algorithm.
-void librarySort(int arr[], int n) {
-    int m = 2 * n;  // Allocate an auxiliary array with size = 2*n.
-    int *T = (int*) malloc(m * sizeof(int));
-    if (T == NULL) {
+// -------------------- 함수 프로토타입 --------------------
+
+// 입력 데이터 생성 함수 프로토타입
+int* generate_sorted_array(int n);
+int* generate_reverse_sorted_array(int n);
+int* generate_random_array(int n);
+int* generate_partially_sorted_array(int n);
+int* copy_array(const int* source, int n);
+
+// Library Sort 수정 함수 (논문 아이디어 반영)
+void librarySort(int A[], int n);
+
+// -------------------- Library Sort 수정 함수 --------------------
+
+// 이 함수는 배열 A의 원소들을 라이브러리 정렬 방식(간격을 남기고 삽입 후, 라운드별 리밸런싱)을 이용해 정렬합니다.
+// A 배열의 원소들은 삽입 순서에 따라 S에 배치되며, 최종적으로 S에서 정렬된 순서를 A에 복사합니다.
+void librarySort(int A[], int n) {
+    if(n <= 0) return;
+    
+    // 초기 정렬 배열 S의 크기는 (1+ε)n로 설정합니다.
+    int cap = (int)ceil((1 + EPS) * n);
+    int *S = (int*) malloc(cap * sizeof(int));
+    int *occupied = (int*) calloc(cap, sizeof(int)); // 0: gap, 1: occupied
+    if (!S || !occupied) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
     
-    int *occupied = (int*) malloc(m * sizeof(int));  // 0 means empty; 1 means occupied.
-    if (occupied == NULL) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
-    for (int i = 0; i < m; i++) {
-        occupied[i] = 0;
-    }
+    // r: 현재까지 삽입된 원소 수.
+    int r = 0;
+    // 첫 원소는 S의 중앙에 삽입 (논문과 유사하게)
+    int pos = cap / 2;
+    S[pos] = A[0];
+    occupied[pos] = 1;
+    r = 1;
     
-    // posList will store the indices in T that are occupied, in sorted order.
-    int *posList = (int*) malloc(n * sizeof(int));
-    if (posList == NULL) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
-    int posCount = 0;
+    // 각 라운드의 삽입 목표; 첫 라운드는 1개부터 시작합니다.
+    int roundTarget = 1;
     
-    // Insert the first element into the middle of T.
-    int start_index = m / 2;
-    T[start_index] = arr[0];
-    occupied[start_index] = 1;
-    posList[0] = start_index;
-    posCount = 1;
-    
-    // Insert each subsequent element.
+    // A 배열의 두 번째 원소부터 삽입 시작
     for (int i = 1; i < n; i++) {
-        int x = arr[i];
-        int insertIndex = 0;
-        
-        // Determine the proper position (in the sorted order of inserted elements) using binary search.
-        if (x < T[posList[0]]) {
-            insertIndex = 0;
-        } else if (x >= T[posList[posCount - 1]]) {
-            insertIndex = posCount;
-        } else {
-            int lo = 0, hi = posCount - 1;
-            while (lo <= hi) {
-                int mid = (lo + hi) / 2;
-                if (T[posList[mid]] <= x) {
-                    lo = mid + 1;
-                } else {
-                    hi = mid - 1;
+        // 라운드 목표에 도달하면 리밸런싱 수행.
+        if (r == roundTarget) {
+            // 새로운 배열 크기는 (2+2ε)*r로 설정합니다.
+            int newCap = (int)ceil((2 + 2 * EPS) * r);
+            int *T = (int*) malloc(newCap * sizeof(int));
+            int *occT = (int*) calloc(newCap, sizeof(int));
+            if(!T || !occT){
+                printf("Memory allocation error during rebalance!\n");
+                exit(EXIT_FAILURE);
+            }
+            // S에 있는 r개의 원소를 균등하게 재분포하기 위한 간격을 계산.
+            int spacing = newCap / r;
+            int index = 0;
+            for (int j = 0; j < cap && index < r; j++){
+                if (occupied[j]) {
+                    int newPos = index * spacing;
+                    T[newPos] = S[j];
+                    occT[newPos] = 1;
+                    index++;
                 }
             }
-            insertIndex = lo;
+            free(S); free(occupied);
+            S = T;
+            occupied = occT;
+            cap = newCap;
+            // 다음 라운드 목표: 현재 r의 두 배, 단 n을 초과하지 않도록.
+            roundTarget = (r * 2 <= n) ? r * 2 : n;
         }
         
-        // Compute the ideal index for insertion.
-        int ideal = 0;
-        if (insertIndex == 0) {
-            ideal = posList[0] - 1;
-            if (ideal < 0)
-                ideal = posList[0] + 1;
-        } else if (insertIndex == posCount) {
-            ideal = posList[posCount - 1] + 1;
-            if (ideal >= m)
-                ideal = posList[posCount - 1] - 1;
-        } else {
-            ideal = (posList[insertIndex - 1] + posList[insertIndex]) / 2;
+        // A[i] 삽입 준비:
+        // 현재 S에서 occupied된 인덱스를 배열 indices에 저장.
+        int *indices = (int*) malloc(r * sizeof(int));
+        if(!indices){
+            printf("Memory allocation error!\n");
+            exit(EXIT_FAILURE);
+        }
+        int count = 0;
+        for (int j = 0; j < cap && count < r; j++){
+            if (occupied[j])
+                indices[count++] = j;
         }
         
-        // Find the nearest empty slot starting at the ideal position (searching rightwards first).
-        int pos = ideal;
-        while (pos < m && occupied[pos]) {
-            pos++;
-        }
-        if (pos >= m) {
-            pos = ideal;
-            while (pos >= 0 && occupied[pos]) {
-                pos--;
+        // 이진 검색으로 A[i] 삽입 위치(지원 위치)를 찾습니다.
+        int lo = 0, hi = r - 1, posIndex = 0;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (S[indices[mid]] <= A[i]) {
+                lo = mid + 1;
+                posIndex = lo;
+            } else {
+                hi = mid - 1;
+                posIndex = lo;
             }
-            if (pos < 0)
-                pos = ideal;
+        }
+        // target 위치 결정: 
+        int target;
+        if (posIndex == 0) {
+            target = indices[0] - 1;
+            if (target < 0)
+                target = indices[0] + 1;
+        } else if (posIndex == r) {
+            target = indices[r - 1] + 1;
+            if (target >= cap)
+                target = indices[r - 1] - 1;
+        } else {
+            target = (indices[posIndex - 1] + indices[posIndex]) / 2;
+        }
+        free(indices);
+        
+        // target 주변에서 빈 칸(gap)을 탐색 (먼저 오른쪽 탐색).
+        int posInsert = target;
+        while (posInsert < cap && occupied[posInsert])
+            posInsert++;
+        if (posInsert >= cap) {
+            posInsert = target;
+            while (posInsert >= 0 && occupied[posInsert])
+                posInsert--;
+            if (posInsert < 0)
+                posInsert = target;
         }
         
-        // Insert x into T at the found position.
-        T[pos] = x;
-        occupied[pos] = 1;
-        
-        // Update posList by inserting 'pos' into the sorted list.
-        for (int j = posCount; j > insertIndex; j--) {
-            posList[j] = posList[j - 1];
+        // A[i]를 S에 삽입.
+        S[posInsert] = A[i];
+        occupied[posInsert] = 1;
+        r++;
+    }
+    
+    // S 배열을 순회하면서 occupied된 위치의 원소를 정렬 결과로 A에 복사.
+    int idx = 0;
+    for (int j = 0; j < cap; j++){
+        if (occupied[j]) {
+            A[idx++] = S[j];
         }
-        posList[insertIndex] = pos;
-        posCount++;
     }
     
-    // Extract the sorted elements from T using posList.
-    for (int i = 0; i < n; i++) {
-        arr[i] = T[posList[i]];
-    }
-    
-    free(T);
+    free(S);
     free(occupied);
-    free(posList);
 }
 
-// --------------------- Input Data Generation Functions ---------------------
+// -------------------- 입력 데이터 생성 함수들 --------------------
 
-// Generates a sorted array (ascending order).
+// 정렬된(오름차순) 배열을 생성합니다.
 int* generate_sorted_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
     if (arr == NULL) {
@@ -126,7 +161,7 @@ int* generate_sorted_array(int n) {
     return arr;
 }
 
-// Generates a sorted array in descending order (this represents the "reverse sorted" case).
+// 정렬된(내림차순) 배열을 생성합니다.
 int* generate_reverse_sorted_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
     if (arr == NULL) {
@@ -134,12 +169,12 @@ int* generate_reverse_sorted_array(int n) {
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < n; i++) {
-        arr[i] = n - i;
+        arr[i] = n - i;  // 내림차순.
     }
     return arr;
 }
 
-// Generates an array with random integers between 0 and 9999.
+// 랜덤 값을 가진 배열(0~9999)를 생성합니다.
 int* generate_random_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
     if (arr == NULL) {
@@ -152,7 +187,7 @@ int* generate_random_array(int n) {
     return arr;
 }
 
-// Generates a partially sorted array (first half sorted, second half random).
+// 부분적으로 정렬된 배열 (앞 절반은 정렬, 뒤 절반은 랜덤)을 생성합니다.
 int* generate_partially_sorted_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
     if (arr == NULL) {
@@ -169,7 +204,7 @@ int* generate_partially_sorted_array(int n) {
     return arr;
 }
 
-// Creates a copy of the source array.
+// 소스 배열을 복사하여 새로운 배열을 반환합니다.
 int* copy_array(const int* source, int n) {
     int* copy = (int*) malloc(n * sizeof(int));
     if (copy == NULL) {
@@ -180,19 +215,12 @@ int* copy_array(const int* source, int n) {
     return copy;
 }
 
-// --------------------- Experiment Function ---------------------
-
-// run_experiment runs the library sort on the provided dataset 'iterations' times 
-// and prints the average execution time.
-// dataset_type: description of the dataset (e.g., "Sorted array (ascending)").
-// arr: the source array.
-// n: size of the array.
-// iterations: number of runs to compute the average execution time.
+// -------------------- 실험 함수 --------------------
+// 주어진 데이터셋에 대해 Library Sort를 iterations 회 실행하여 평균 실행 시간을 출력합니다.
 void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
     clock_t start, end;
     double total_time = 0.0;
-    
-    for (int i = 0; i < iterations; i++) {
+    for (int i = 0; i < iterations; i++){
         int* data = copy_array(arr, n);
         start = clock();
         librarySort(data, n);
@@ -205,33 +233,31 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
            dataset_type, n, iterations, total_time / iterations);
 }
 
-// --------------------- Main Function ---------------------
-
+// -------------------- Main 함수 --------------------
 int main() {
     srand(time(NULL));
     
-    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    // 다양한 입력 크기를 테스트 (1K, 5K, 10K, 50K, 100K, 500K, 1M)
     int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
     int numSizes = sizeof(sizes) / sizeof(sizes[0]);
-    int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
+    int iterations = 10;  // 각 입력 크기마다 10회 실행하여 평균 실행 시간 산출
     
     for (int k = 0; k < numSizes; k++) {
         int n = sizes[k];
         printf("\n----- Testing with input size: %d -----\n", n);
         
         // 각 입력 크기에 대해 다양한 데이터셋 생성
-        int* sorted_array         = generate_sorted_array(n);
+        int* sorted_array = generate_sorted_array(n);
         int* reverse_sorted_array = generate_reverse_sorted_array(n);
-        int* random_array         = generate_random_array(n);
+        int* random_array = generate_random_array(n);
         int* partially_sorted_array = generate_partially_sorted_array(n);
         
-        // 각 데이터셋에 대해 실험 실행
+        // 각 데이터셋에 대해 Library Sort 수행 및 평균 시간 측정
         run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
         run_experiment("Sorted array (descending)", reverse_sorted_array, n, iterations);
         run_experiment("Random array", random_array, n, iterations);
         run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
         
-        // 동적 할당한 메모리 해제
         free(sorted_array);
         free(reverse_sorted_array);
         free(random_array);
