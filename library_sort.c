@@ -3,7 +3,7 @@
 #include <time.h>
 #include <string.h>
 
-#define EPSILON 0.5  // 추가 공간 비율 (ε)
+#define EPSILON 0.6  // 추가 공간 비율 (ε)
 
 // 함수 프로토타입
 void librarySort(int *A, int n);
