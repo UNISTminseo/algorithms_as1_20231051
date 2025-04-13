@@ -1,9 +1,38 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
+#include <time.h>
+#include <math.h>
 
 #define MINRUN 32
+
+// -------------------- 구조체 및 함수 프로토타입 --------------------
+typedef struct {
+    int start;
+    int length;
+} Run;
+
+void insertionSort(int arr[], int left, int right);
+void merge(int arr[], int l, int m, int r);
+void reverseArray(int arr[], int n);
+void timSort(int arr[], int n);
+
+int* generate_sorted_array(int n);
+int* generate_reverse_sorted_array(int n);
+int* generate_random_array(int n);
+int* generate_partially_sorted_array(int n);
+int* copy_array(const int* source, int n);
+void run_experiment(const char* dataset_type, int* arr, int n, int iterations);
+int is_sorted(int *A, int n);
+
+// qsort용 비교 함수
+int cmp_int(const void *a, const void *b) {
+    int int_a = *(const int*)a;
+    int int_b = *(const int*)b;
+    return int_a - int_b;
+}
+
+// -------------------- 정렬 관련 함수 --------------------
 
 // Insertion sort for subarray arr[left...right]
 void insertionSort(int arr[], int left, int right) {
@@ -18,15 +47,14 @@ void insertionSort(int arr[], int left, int right) {
     }
 }
 
-// Merge function: Merges two sorted subarrays of arr.
-// The first subarray is arr[l..m] and the second is arr[m+1..r]
+// Merge 함수: arr[l..m]와 arr[m+1..r] 두 정렬된 부분 배열을 병합하여 arr[l..r]을 정렬
 void merge(int arr[], int l, int m, int r) {
     int len1 = m - l + 1;
     int len2 = r - m;
     int *leftArr = (int*) malloc(len1 * sizeof(int));
     int *rightArr = (int*) malloc(len2 * sizeof(int));
     if (!leftArr || !rightArr) {
-        printf("Memory allocation error!\n");
+        fprintf(stderr, "Memory allocation error in merge\n");
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < len1; i++)
@@ -48,69 +76,105 @@ void merge(int arr[], int l, int m, int r) {
     free(rightArr);
 }
 
-// Tim Sort implementation.
-void timSort(int arr[], int n) {
-    // Sort individual runs using insertion sort.
-    for (int i = 0; i < n; i += MINRUN) {
-        int right = (i + MINRUN - 1 < n) ? i + MINRUN - 1 : n - 1;
-        insertionSort(arr, i, right);
-    }
-    // Merge runs: start from size = MINRUN and double the run size each iteration.
-    for (int size = MINRUN; size < n; size = 2 * size) {
-        for (int left = 0; left < n; left += 2 * size) {
-            int mid = left + size - 1;
-            int right = (left + 2 * size - 1 < n) ? (left + 2 * size - 1) : n - 1;
-            if (mid < right)
-                merge(arr, left, mid, right);
-        }
+// reverseArray: 배열 A의 원소들을 거꾸로 뒤집음.
+void reverseArray(int arr[], int n) {
+    for (int i = 0; i < n/2; i++) {
+        int temp = arr[i];
+        arr[i] = arr[n-1-i];
+        arr[n-1-i] = temp;
     }
 }
 
-/* --- Input Data Generation Functions --- */
-
-// Generates a sorted array in ascending order.
-int* generate_sorted_array(int n) {
-    int* arr = (int*) malloc(n * sizeof(int));
-    if (!arr) {
-        printf("Memory allocation error!\n");
+// TimSort: 자연 run을 검출하고, run 길이가 MINRUN보다 작으면 확장한 후, run들을 병합하여 전체 배열을 정렬.
+void timSort(int arr[], int n) {
+    // runStack: 자연 run들의 시작과 길이를 저장하는 배열.
+    int runCapacity = 64;
+    Run* runStack = (Run*) malloc(runCapacity * sizeof(Run));
+    if (!runStack) {
+        fprintf(stderr, "Memory allocation error in timSort (runStack)\n");
         exit(EXIT_FAILURE);
     }
+    int runCount = 0;
+    
+    int i = 0;
+    while (i < n) {
+        int runStart = i;
+        i++;
+        // Detect ascending or descending run.
+        if (i < n) {
+            if (arr[i] < arr[i-1]) {  // Descending run
+                while (i < n && arr[i] < arr[i-1])
+                    i++;
+                reverseArray(arr + runStart, i - runStart);
+            } else {  // Ascending run
+                while (i < n && arr[i] >= arr[i-1])
+                    i++;
+            }
+        }
+        int runLen = i - runStart;
+        // If run length is less than MINRUN, extend it using insertion sort.
+        if (runLen < MINRUN) {
+            int end = (runStart + MINRUN < n) ? runStart + MINRUN : n;
+            insertionSort(arr, runStart, end - 1);
+            runLen = end - runStart;
+            i = end;
+        }
+        // Push run onto runStack.
+        if (runCount >= runCapacity) {
+            runCapacity *= 2;
+            runStack = (Run*) realloc(runStack, runCapacity * sizeof(Run));
+            if (!runStack) {
+                fprintf(stderr, "Memory allocation error in timSort (realloc runStack)\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        runStack[runCount].start = runStart;
+        runStack[runCount].length = runLen;
+        runCount++;
+    }
+    
+    // Merge runs from the stack until only one run remains.
+    while (runCount > 1) {
+        // 간단하게, 가장 마지막 두 run을 merge.
+        int start1 = runStack[runCount - 2].start;
+        int len1 = runStack[runCount - 2].length;
+        int start2 = runStack[runCount - 1].start;
+        int len2 = runStack[runCount - 1].length;
+        merge(arr, start1, start1 + len1 - 1, start2 + len2 - 1);
+        runStack[runCount - 2].length += runStack[runCount - 1].length;
+        runCount--;
+    }
+    free(runStack);
+}
+
+// -------------------- 데이터셋 생성 함수들 --------------------
+int* generate_sorted_array(int n) {
+    int* arr = (int*) malloc(n * sizeof(int));
+    if (!arr) { fprintf(stderr, "Memory allocation error!\n"); exit(EXIT_FAILURE); }
     for (int i = 0; i < n; i++)
         arr[i] = i;
     return arr;
 }
 
-// Generates a sorted array in descending order (serving as reverse sorted).
 int* generate_reverse_sorted_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
-    if (!arr) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (!arr) { fprintf(stderr, "Memory allocation error!\n"); exit(EXIT_FAILURE); }
     for (int i = 0; i < n; i++)
         arr[i] = n - i;
     return arr;
 }
 
-// Generates a random array with integers between 0 and 9999.
 int* generate_random_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
-    if (!arr) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (!arr) { fprintf(stderr, "Memory allocation error!\n"); exit(EXIT_FAILURE); }
     for (int i = 0; i < n; i++)
         arr[i] = rand() % 10000;
     return arr;
 }
 
-// Generates a partially sorted array: first half sorted and second half random.
 int* generate_partially_sorted_array(int n) {
     int* arr = (int*) malloc(n * sizeof(int));
-    if (!arr) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (!arr) { fprintf(stderr, "Memory allocation error!\n"); exit(EXIT_FAILURE); }
     int mid = n / 2;
     for (int i = 0; i < mid; i++)
         arr[i] = i;
@@ -119,19 +183,23 @@ int* generate_partially_sorted_array(int n) {
     return arr;
 }
 
-// Copies an array; returns a new dynamically allocated copy.
 int* copy_array(const int* source, int n) {
     int* copy = (int*) malloc(n * sizeof(int));
-    if (!copy) {
-        printf("Memory allocation error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (!copy) { fprintf(stderr, "Memory allocation error!\n"); exit(EXIT_FAILURE); }
     memcpy(copy, source, n * sizeof(int));
     return copy;
 }
 
-/* --- Experiment Function --- */
-// Runs the Tim Sort experiment on a given dataset 'iterations' times and prints the average execution time.
+// -------------------- 정렬 여부 확인 함수 --------------------
+int is_sorted(int *A, int n) {
+    for (int i = 1; i < n; i++) {
+        if (A[i-1] > A[i])
+            return 0;
+    }
+    return 1;
+}
+
+// -------------------- 실험 함수 --------------------
 void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
     clock_t start, end;
     double total_time = 0.0;
@@ -148,31 +216,29 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
            dataset_type, n, iterations, total_time / iterations);
 }
 
+// -------------------- main() --------------------
 int main() {
     srand(time(NULL));
     
-    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    // 테스트할 다양한 입력 크기: 1K, 5K, 10K, 50K, 100K, 500K, 1M
     int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
     int numSizes = sizeof(sizes) / sizeof(sizes[0]);
-    int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
+    int iterations = 10;
     
     for (int k = 0; k < numSizes; k++) {
         int n = sizes[k];
         printf("\n----- Testing with input size: %d -----\n", n);
         
-        // 각 입력 크기에 대해 다양한 데이터셋 생성
-        int* sorted_array         = generate_sorted_array(n);
+        int* sorted_array = generate_sorted_array(n);
         int* reverse_sorted_array = generate_reverse_sorted_array(n);
-        int* random_array         = generate_random_array(n);
+        int* random_array = generate_random_array(n);
         int* partially_sorted_array = generate_partially_sorted_array(n);
         
-        // 각 데이터셋에 대해 실험 실행
         run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
         run_experiment("Sorted array (descending)", reverse_sorted_array, n, iterations);
         run_experiment("Random array", random_array, n, iterations);
         run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
         
-        // 동적 할당한 메모리 해제
         free(sorted_array);
         free(reverse_sorted_array);
         free(random_array);
