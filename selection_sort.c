@@ -153,6 +153,6 @@ int main() {
         free(random_array);
         free(partially_sorted_array);
     }
-    
+
     return 0;
 }
