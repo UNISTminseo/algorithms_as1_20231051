@@ -6,7 +6,7 @@
 
 #define THRESHOLD 16
 
-// -------------------- Utility Functions --------------------
+/* -------------------- Utility Functions -------------------- */
 
 // Swap two integer values.
 void swap(int *a, int *b) {
@@ -16,6 +16,7 @@ void swap(int *a, int *b) {
 }
 
 // Partition function for quicksort.
+// Uses the last element as pivot.
 int partition(int arr[], int low, int high) {
     int pivot = arr[high];
     int i = low - 1;
@@ -29,7 +30,7 @@ int partition(int arr[], int low, int high) {
     return i + 1;
 }
 
-// Insertion sort for small subarrays, operating on indices [left, right].
+// Insertion sort for subarray arr[left...right].
 void insertionSort_sub(int arr[], int left, int right) {
     for (int i = left + 1; i <= right; i++) {
         int key = arr[i];
@@ -42,14 +43,13 @@ void insertionSort_sub(int arr[], int left, int right) {
     }
 }
 
-// -------------------- Heapsort on Subarray --------------------
-
 // Heapify for subarray arr[left...right] treated as a heap.
-// n is the number of elements (n = right - left + 1); i is the index in [0, n-1].
+// n: number of elements (right - left + 1), i: index in [0, n-1]
 void heapify_range(int arr[], int left, int n, int i) {
     int largest = i;
     int l = 2 * i + 1;
     int r = 2 * i + 2;
+    
     if (l < n && arr[left + l] > arr[left + largest])
         largest = l;
     if (r < n && arr[left + r] > arr[left + largest])
@@ -60,23 +60,23 @@ void heapify_range(int arr[], int left, int n, int i) {
     }
 }
 
-// Heapsort on the subarray arr[left...right].
+// Heapsort on subarray arr[left...right].
 void heapsort_range(int arr[], int left, int right) {
     int n = right - left + 1;
-    for (int i = n / 2 - 1; i >= 0; i--) {
+    // Build max heap.
+    for (int i = n/2 - 1; i >= 0; i--) {
         heapify_range(arr, left, n, i);
     }
+    // Extract elements from heap.
     for (int i = n - 1; i > 0; i--) {
         swap(&arr[left], &arr[left + i]);
         heapify_range(arr, left, i, 0);
     }
 }
 
-// -------------------- Introsort Utility --------------------
+/* -------------------- Introsort Implementation -------------------- */
 
-// introsort_util recursively sorts the subarray arr[left...right] using quicksort.
-// If the subarray is small, it uses insertion sort. If the recursion depth reaches 0,
-// it switches to heapsort on the subarray.
+// Recursive utility for introsort.
 void introsort_util(int arr[], int left, int right, int depthLimit) {
     int size = right - left + 1;
     if (size < THRESHOLD) {
@@ -92,17 +92,17 @@ void introsort_util(int arr[], int left, int right, int depthLimit) {
     introsort_util(arr, pivot + 1, right, depthLimit - 1);
 }
 
-// Introsort: sorts the array 'arr' of length 'n'.
+// Introsort: sorts array arr of length n.
 void introsort(int arr[], int n) {
     int depthLimit = 2 * (int)log(n);
     introsort_util(arr, 0, n - 1, depthLimit);
 }
 
-// -------------------- Input Data Generation Functions --------------------
+/* -------------------- Input Data Generation Functions -------------------- */
 
-// Generates a sorted array in ascending order.
+// Generates a sorted array (ascending order).
 int* generate_sorted_array(int n) {
-    int* arr = (int*)malloc(n * sizeof(int));
+    int* arr = (int*) malloc(n * sizeof(int));
     if (!arr) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
@@ -112,9 +112,9 @@ int* generate_sorted_array(int n) {
     return arr;
 }
 
-// Generates a sorted array in descending order (reverse sorted).
+// Generates a reverse sorted array (descending order).
 int* generate_reverse_sorted_array(int n) {
-    int* arr = (int*)malloc(n * sizeof(int));
+    int* arr = (int*) malloc(n * sizeof(int));
     if (!arr) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
@@ -126,7 +126,7 @@ int* generate_reverse_sorted_array(int n) {
 
 // Generates a random array with integers between 0 and 9999.
 int* generate_random_array(int n) {
-    int* arr = (int*)malloc(n * sizeof(int));
+    int* arr = (int*) malloc(n * sizeof(int));
     if (!arr) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
@@ -138,7 +138,7 @@ int* generate_random_array(int n) {
 
 // Generates a partially sorted array: first half sorted, second half random.
 int* generate_partially_sorted_array(int n) {
-    int* arr = (int*)malloc(n * sizeof(int));
+    int* arr = (int*) malloc(n * sizeof(int));
     if (!arr) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
@@ -151,9 +151,9 @@ int* generate_partially_sorted_array(int n) {
     return arr;
 }
 
-// Creates and returns a copy of the source array.
+// Copies an array; returns a new copy of the source.
 int* copy_array(const int* source, int n) {
-    int* copy = (int*)malloc(n * sizeof(int));
+    int* copy = (int*) malloc(n * sizeof(int));
     if (!copy) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
@@ -162,13 +162,18 @@ int* copy_array(const int* source, int n) {
     return copy;
 }
 
-// -------------------- Experiment Function --------------------
+/* -------------------- Experiment Function -------------------- */
 
-// Runs the introsort algorithm on a given dataset 'iterations' times
+// Runs the introsort experiment on a given dataset for 'iterations' times 
 // and prints the average execution time.
+// dataset_type: Description of the dataset (e.g., "Sorted array (ascending)").
+// arr: The source array to sort (remains unchanged for each run).
+// n: The size of the array.
+// iterations: Number of runs for averaging.
 void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
     clock_t start, end;
     double total_time = 0.0;
+    
     for (int i = 0; i < iterations; i++) {
         int* data = copy_array(arr, n);
         start = clock();
@@ -182,25 +187,24 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
            dataset_type, n, iterations, total_time / iterations);
 }
 
-// -------------------- Main Function --------------------
-
+/* -------------------- Main Function -------------------- */
 int main() {
     srand(time(NULL));
     
-    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    // 테스트할 다양한 입력 크기: 1000, 5000, 10000, 50000, 100000, 500000, 1000000
     int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
     int numSizes = sizeof(sizes) / sizeof(sizes[0]);
-    int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
+    int iterations = 10; // 각 입력 크기마다 최소 10회 실행
     
     for (int k = 0; k < numSizes; k++) {
         int n = sizes[k];
         printf("\n----- Testing with input size: %d -----\n", n);
         
-        // 각 입력 크기에 대해 다양한 데이터셋 생성
-        int* sorted_array         = generate_sorted_array(n);
-        int* reverse_sorted_array = generate_reverse_sorted_array(n);
-        int* random_array         = generate_random_array(n);
-        int* partially_sorted_array = generate_partially_sorted_array(n);
+        // 각 데이터셋 생성
+        int* sorted_array          = generate_sorted_array(n);
+        int* reverse_sorted_array  = generate_reverse_sorted_array(n);
+        int* random_array          = generate_random_array(n);
+        int* partially_sorted_array= generate_partially_sorted_array(n);
         
         // 각 데이터셋에 대해 실험 실행
         run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
@@ -208,7 +212,6 @@ int main() {
         run_experiment("Random array", random_array, n, iterations);
         run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
         
-        // 동적 할당한 메모리 해제
         free(sorted_array);
         free(reverse_sorted_array);
         free(random_array);
