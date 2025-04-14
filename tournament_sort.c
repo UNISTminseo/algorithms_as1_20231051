@@ -2,24 +2,35 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <limits.h>  // For INT_MAX
+#include <limits.h>  // INT_MAX 사용
+
+// -------------------- Utility Function --------------------
+void swap(int *a, int *b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
 
 // Compute the next power of 2 greater than or equal to n.
 int nextPowerOf2(int n) {
     int p = 1;
-    while(p < n) p *= 2;
+    while (p < n)
+        p *= 2;
     return p;
 }
 
-// Tournament Sort implementation.
-// This function sorts the array 'arr' of length 'n' in ascending order.
+// -------------------- Tournament Sort Function --------------------
+// 이 구현은 문헌에서 설명하는 토너먼트 트리(primitives: LISTIFY!, TOURNAMENT!, 등)의 주요 아이디어를 반영합니다.
+// 먼저 입력 배열을 적절한 길이(k, 2의 거듭제곱)로 확장한 temp 배열을 만들고,
+// leaves에 해당하는 인덱스들을 tree 배열의 하위 절반(인덱스 [k, 2*k-1])에 저장합니다.
+// 그 후 내부 노드들을 채워 전체 트리(토너먼트)를 구성하고,
+// tree[1] (루트)에 저장된 인덱스를 사용해 sorted 배열에 순서대로 최소 원소들을 추출합니다.
 void tournamentSort(int arr[], int n) {
-    // Determine the required number of leaves.
     int k = nextPowerOf2(n);
     
-    // Create a temporary array 'temp' to store input values and pad with INT_MAX.
+    // temp 배열: 입력 배열 값을 담고, 나머지는 INT_MAX로 채움.
     int *temp = (int*) malloc(k * sizeof(int));
-    if (temp == NULL) {
+    if (!temp) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
@@ -30,47 +41,41 @@ void tournamentSort(int arr[], int n) {
         temp[i] = INT_MAX;
     }
     
-    // Allocate the tournament tree as an array of size 2*k.
-    // The tree will be represented in a typical heap style (1-indexed), 
-    // but we use 0-indexed C arrays by considering leaves at indices [k, 2*k-1].
+    // tree 배열: 2*k 크기의 배열로, 리프 노드 (인덱스 k부터 2*k-1)에 temp 인덱스를 저장.
     int treeSize = 2 * k;
     int *tree = (int*) malloc(treeSize * sizeof(int));
-    if (tree == NULL) {
+    if (!tree) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
-    
-    // Initialize leaves: for each i from 0 to k-1, 
-    // the corresponding leaf node is at index (i + k) and stores i.
     for (int i = 0; i < k; i++) {
-        tree[k + i] = i;
+        tree[k + i] = i;  // 각 리프는 자신을 가리킴.
     }
     
-    // Build the tournament tree in a bottom-up fashion.
+    // 내부 노드를 채워, 각 노드에 두 자식 중 값이 작은 쪽(우승자)의 인덱스를 저장.
     for (int i = k - 1; i >= 1; i--) {
         int left = tree[2 * i];
         int right = tree[2 * i + 1];
         tree[i] = (temp[left] <= temp[right]) ? left : right;
     }
     
-    // Allocate an array to store the sorted output.
+    // sorted 배열: 추출된 최소 원소들을 저장.
     int *sorted = (int*) malloc(n * sizeof(int));
-    if (sorted == NULL) {
+    if (!sorted) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
     
-    // Repeatedly extract the minimum element from the tournament tree.
+    // 전체 토너먼트에서 최소 원소를 한 번씩 추출.
     for (int i = 0; i < n; i++) {
-        int winner = tree[1];  // The index in 'temp' holding the smallest element.
+        int winner = tree[1];  // 루트에 있는 인덱스가 최소 원소의 인덱스.
         sorted[i] = temp[winner];
-        
-        // Set the winner's value to INT_MAX so it will not be chosen again.
+        // 추출한 원소는 더 이상 선택되지 않도록 INT_MAX로 설정.
         temp[winner] = INT_MAX;
         
-        // Update the tournament tree from the leaf corresponding to the winner up to the root.
-        int j = winner + k;  // Leaf index in the tree.
-        tree[j] = winner;    // (Leaf nodes remain unchanged in terms of stored index.)
+        // 리프 노드에 해당하는 위치를 찾고, 상위 경로를 따라 트리 재조정.
+        int j = winner + k;  // 리프 위치.
+        tree[j] = winner;    // 리프 노드 값은 변경하지 않아도 되지만, 업데이트.
         for (j /= 2; j >= 1; j /= 2) {
             int left = tree[2 * j];
             int right = tree[2 * j + 1];
@@ -78,7 +83,7 @@ void tournamentSort(int arr[], int n) {
         }
     }
     
-    // Copy the sorted output back to the original array.
+    // sorted 결과를 arr에 복사.
     memcpy(arr, sorted, n * sizeof(int));
     
     free(temp);
@@ -86,70 +91,68 @@ void tournamentSort(int arr[], int n) {
     free(sorted);
 }
 
-/* --- Input Data Generation Functions --- */
+/* -------------------- Input Data Generation Functions --------------------*/
 
-// Generates a sorted (ascending) array of size n.
+// Generates a sorted (ascending) array.
 int* generate_sorted_array(int n) {
-    int *arr = (int*) malloc(n * sizeof(int));
-    if(arr == NULL){
+    int* arr = (int*) malloc(n * sizeof(int));
+    if(arr == NULL) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
-    for(int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++) {
         arr[i] = i;
     }
     return arr;
 }
 
-// Generates a sorted (descending) array of size n.
-// This serves as the "reverse sorted" case.
+// Generates a reverse sorted (descending) array.
 int* generate_reverse_sorted_array(int n) {
-    int *arr = (int*) malloc(n * sizeof(int));
-    if(arr == NULL){
+    int* arr = (int*) malloc(n * sizeof(int));
+    if(arr == NULL) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < n; i++){
-        arr[i] = n - i;  // Descending order.
+    for (int i = 0; i < n; i++) {
+        arr[i] = n - i;
     }
     return arr;
 }
 
-// Generates an array of size n with random integers between 0 and 9999.
+// Generates a random array with integers between 0 and 9999.
 int* generate_random_array(int n) {
-    int *arr = (int*) malloc(n * sizeof(int));
-    if(arr == NULL){
+    int* arr = (int*) malloc(n * sizeof(int));
+    if(arr == NULL) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++) {
         arr[i] = rand() % 10000;
     }
     return arr;
 }
 
-// Generates a partially sorted array of size n: 
-// first half sorted (ascending) and second half containing random integers.
+// Generates a partially sorted array: first half sorted, second half random.
 int* generate_partially_sorted_array(int n) {
-    int *arr = (int*) malloc(n * sizeof(int));
-    if(arr == NULL){
+    int* arr = (int*) malloc(n * sizeof(int));
+    if(arr == NULL) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
     int mid = n / 2;
-    for (int i = 0; i < mid; i++){
+    for (int i = 0; i < mid; i++) {
         arr[i] = i;
     }
-    for (int i = mid; i < n; i++){
+    for (int i = mid; i < n; i++) {
         arr[i] = rand() % 10000;
     }
     return arr;
 }
 
-// Creates and returns a copy of the source array of size n.
+// Copies an array; returns a new array dynamically allocated as a copy of source.
 int* copy_array(const int* source, int n) {
-    int *copy = (int*) malloc(n * sizeof(int));
-    if(copy == NULL){
+    int* copy = (int*) malloc(n * sizeof(int));
+    if(copy == NULL) {
         printf("Memory allocation error!\n");
         exit(EXIT_FAILURE);
     }
@@ -157,14 +160,18 @@ int* copy_array(const int* source, int n) {
     return copy;
 }
 
-/* --- Experiment Function --- */
-// Runs the Tournament Sort algorithm on the provided dataset for a given number of iterations,
+/* -------------------- Experiment Function --------------------*/
+// Runs the Tournament Sort algorithm on a given dataset 'iterations' times 
 // and prints the average execution time.
+// dataset_type: Description of the dataset.
+// arr: the source array (unchanged for each run).
+// n: size of the array.
+// iterations: number of test runs for averaging.
 void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
     clock_t start, end;
     double total_time = 0.0;
     for (int i = 0; i < iterations; i++){
-        int *data = copy_array(arr, n);
+        int* data = copy_array(arr, n);
         start = clock();
         tournamentSort(data, n);
         end = clock();
@@ -172,35 +179,36 @@ void run_experiment(const char* dataset_type, int* arr, int n, int iterations) {
         total_time += time_taken;
         free(data);
     }
-    printf("Dataset: %s, Size: %d, Average execution time (%d runs): %.6f seconds\n",
+    printf("Dataset: %s, Size: %d, Average execution time (%d runs): %.6f seconds\n", 
            dataset_type, n, iterations, total_time / iterations);
 }
 
+/* -------------------- Main Function --------------------*/
 int main() {
     srand(time(NULL));
     
-    // 테스트할 다양한 입력 크기를 배열에 저장합니다.
+    // Test input sizes.
     int sizes[] = {1000, 5000, 10000, 50000, 100000, 500000, 1000000};
     int numSizes = sizeof(sizes) / sizeof(sizes[0]);
-    int iterations = 10;  // 각 입력 크기마다 최소 10회 실행
+    int iterations = 10;  // Each size is tested 10 times.
     
     for (int k = 0; k < numSizes; k++) {
         int n = sizes[k];
         printf("\n----- Testing with input size: %d -----\n", n);
         
-        // 각 입력 크기에 대해 다양한 데이터셋 생성
-        int* sorted_array         = generate_sorted_array(n);
+        // Generate various datasets.
+        int* sorted_array = generate_sorted_array(n);
         int* reverse_sorted_array = generate_reverse_sorted_array(n);
-        int* random_array         = generate_random_array(n);
+        int* random_array = generate_random_array(n);
         int* partially_sorted_array = generate_partially_sorted_array(n);
         
-        // 각 데이터셋에 대해 실험 실행
+        // Run experiments.
         run_experiment("Sorted array (ascending)", sorted_array, n, iterations);
         run_experiment("Sorted array (descending)", reverse_sorted_array, n, iterations);
         run_experiment("Random array", random_array, n, iterations);
         run_experiment("Partially sorted array", partially_sorted_array, n, iterations);
         
-        // 동적 할당한 메모리 해제
+        // Free allocated memory.
         free(sorted_array);
         free(reverse_sorted_array);
         free(random_array);
